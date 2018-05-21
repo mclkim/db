@@ -1,0 +1,11 @@
+{
+  "require": {
+    "php": ">=5.4.0",
+    "ext-pdo": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mcl\\Db\\": "src/"
+    }
+  }
+}
