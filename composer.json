@@ -1,4 +1,22 @@
 {
+  "name": "mclkim/db",
+  "description": "",
+  "type": "library",
+  "keywords": [
+    "database"
+  ],
+  "license": "MIT",
+  "homepage": "http://mclkim.github.com",
+  "support": {
+    "issues": "https://github.com/mclkim/db/issues",
+    "source": "https://github.com/mclkim/db"
+  },
+  "authors": [
+    {
+      "name": "Kim myung chul",
+      "email": "mclkims@gmail.com"
+    }
+  ],
   "require": {
     "php": ">=5.4.0",
     "ext-pdo": "*"
