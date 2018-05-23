@@ -35,7 +35,7 @@
 
 namespace Mcl\Db;
 
-class DBPageManager extends DBManager implements DBPageManagerInterface
+class DBPageManager extends DBManager //implements DBPageManagerInterface
 {
     private $page_in_url; // 페이지 URL
     private $current_page;
@@ -207,8 +207,8 @@ class DBPageManager extends DBManager implements DBPageManagerInterface
         );
     }
 
-    function getPageMapList($query, array $bindValues = null)
-    {
-        return $this->executePreparedQueryToPageMapList($query, $bindValues);
-    }
+//    function getPageMapList($query, array $bindValues = null)
+//    {
+//        return $this->executePreparedQueryToPageMapList($query, $bindValues);
+//    }
 }

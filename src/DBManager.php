@@ -6,7 +6,7 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
-class DBManager implements DBManagerInterface
+class DBManager //implements DBManagerInterface
 {
     var $enableLogging = true;
 
@@ -19,10 +19,12 @@ class DBManager implements DBManagerInterface
     const DB_AUTO_REPLACE = 3;
 
     private $pdo = null;
+    private $logger = null;
 
-    function __construct(PDO $pdoInstance = null)
+    function __construct(PDO $pdoInstance = null, $logger = null)
     {
         $this->pdo = $pdoInstance;
+        $this->logger = $logger;
     }
 
     public function getPdo()
@@ -30,20 +32,25 @@ class DBManager implements DBManagerInterface
         return $this->pdo;
     }
 
+    protected function info($message = null, array $context = array())
+    {
+        $message = is_array($message) ? var_export($message, true) : $message;
+        if (!is_null($this->logger))
+            $this->logger->info($message, $context);
+    }
+
     protected function debug($message, array $context = array())
     {
         $message = is_array($message) ? var_export($message, true) : $message;
-//        if ($this->enableLogging)
-//            logger()->debug($message, $context);
-        var_dump($message);
+        if ($this->enableLogging && !is_null($this->logger))
+            $this->logger->debug($message, $context);
     }
 
-//
     protected function err($message, array $context = array())
     {
         $message = is_array($message) ? var_export($message, true) : $message;
-//        logger()->error($message, $context);
-        var_dump($message);
+        if (!is_null($this->logger))
+            $this->logger->error($message, $context);
     }
 
     function version()
@@ -131,18 +138,27 @@ class DBManager implements DBManagerInterface
 
         // create a prepared statement from the supplied SQL string
         try {
-            $stmt = $this->pdo->prepare($query);
+            /**
+             * TODO::
+             * $stmt = $this->pdo->prepare($query);
+             */
+            $stmt = $this->pdo->prepare($sql);
         } catch (PDOException $e) {
             $this->err($e->getMessage());
-//            ErrorHandler::rethrow($e);
+            ErrorHandler::rethrow($e);
         }
 
         // bind the supplied values to the query and execute it
         try {
-            $stmt->execute($bindValues);
+            /**
+             * TODO::
+             * PHP Warning: PDOStatement::execute(): SQLSTATE[HY093]: Invalid parameter number: parameter was not defined
+             * $stmt->execute($bindValues);
+             */
+            $stmt->execute();
         } catch (PDOException $e) {
             $this->err($e->getMessage());
-//            ErrorHandler::rethrow($e);
+            ErrorHandler::rethrow($e);
         }
 
         // fetch the desired results from the result set via the supplied callback
@@ -204,17 +220,26 @@ class DBManager implements DBManagerInterface
         $sql = $this->executeEmulateQuery($query, $bindValues);
         $this->debug($sql);
 
+        // create a prepared statement from the supplied SQL string
         try {
-            // create a prepared statement from the supplied SQL string
-            $stmt = $this->pdo->prepare($query);
+            /**
+             * TODO::
+             * $stmt = $this->pdo->prepare($query);
+             */
+            $stmt = $this->pdo->prepare($sql);
         } catch (PDOException $e) {
             $this->err($e->getMessage());
             ErrorHandler::rethrow($e);
         }
 
+        // bind the supplied values to the query and execute it
         try {
-            // bind the supplied values to the query and execute it
-            $stmt->execute($bindValues);
+            /**
+             * TODO::
+             * PHP Warning: PDOStatement::execute(): SQLSTATE[HY093]: Invalid parameter number: parameter was not defined
+             * $stmt->execute($bindValues);
+             * */
+            $stmt->execute();
         } catch (PDOException $e) {
             $this->err($e->getMessage());
             ErrorHandler::rethrow($e);
