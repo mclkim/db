@@ -8,14 +8,6 @@
  * [1].사용법 정리 필요
  * [2].보다 쉬운 프로그램으로 리빌딩 필요
  * [3].https://github.com/shadowhand/pagination
- *
- * ---------------------------------------------------------------
- * Development / Modification History
- * ---------------------------------------------------------------
- * Date / Author / Desciption / Transport
- * ---------------------------------------------------------------
- * YYYY/MM/DD
- * ---------------------------------------------------------------
  */
 
 /**
@@ -73,7 +65,8 @@ class DBPageManager extends DBManager //implements DBPageManagerInterface
 
     protected function getNumRowCount($sql, $params = array())
     {
-        $realquery = $this->executeEmulateQuery($sql, $params);
+//        $realquery = $this->executeEmulateQuery($sql, $params);
+        $realquery = $this->getRawSql($sql, $params);
 
         // TODO::다른좋은방법으로
         // $sql = 'select count(*)' . $this->stristr($this->stristr($realquery, ' from '), 'order by', true);
@@ -105,7 +98,7 @@ class DBPageManager extends DBManager //implements DBPageManagerInterface
             return substr($haystack, $pos);
     }
 
-    function executePreparedQueryToPage($sql, $params = array())
+    protected function executePreparedQueryToPage($sql, $params = array())
     {
         try {
             $config = array(
@@ -189,7 +182,7 @@ class DBPageManager extends DBManager //implements DBPageManagerInterface
             'first_page' => $paging->first_page,
             'last_page' => $paging->last_page,
             'offset' => $paging->offset,
-            'pages' => $paging, // 출력할 페이지
+            'pages' => $paging,
             'links' => $links  // 출력할 페이지
         );
     }

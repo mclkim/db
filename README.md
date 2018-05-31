@@ -49,5 +49,7 @@ http://localhost:8000/
 ```
 ## Reference
  * [PHP-DB](https://github.com/delight-im/PHP-DB)
-
+ * [Pixie Query Builder](https://github.com/usmanhalalit/pixie)
+ * [DataGrid ](https://github.com/contributte/datagrid)
+ 
 Released under the [MIT License](LICENSE)
