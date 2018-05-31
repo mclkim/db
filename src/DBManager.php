@@ -5,12 +5,11 @@ namespace Mcl\Db;
 use PDO;
 use PDOException;
 use PDOStatement;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerInterface;
 
-class DBManager //implements DBManagerInterface
+class DBManager implements LoggerAwareInterface //implements DBManagerInterface
 {
-    const DB_PARAM_SCALAR = 1;
-    const DB_PARAM_OPAQUE = 2;
-    const DB_PARAM_MISC = 3;
     const DB_AUTO_INSERT = 1;
     const DB_AUTO_UPDATE = 2;
     const DB_AUTO_REPLACE = 3;
@@ -18,9 +17,17 @@ class DBManager //implements DBManagerInterface
     private $pdo = null;
     private $logger = null;
 
-    function __construct(PDO $pdoInstance = null, $logger = null)
+    function __construct(PDO $pdo = null, $logger = null)
     {
-        $this->pdo = $pdoInstance;
+        if ($pdo) {
+            $this->pdo = $pdo;
+        }
+        $this->logger = $logger;
+    }
+
+
+    public function setLogger(LoggerInterface $logger)
+    {
         $this->logger = $logger;
     }
 
@@ -45,8 +52,8 @@ class DBManager //implements DBManagerInterface
     private function executePreparedQuery(callable $callback, $query, array $bindValues = null)
     {
 //        $sql = $this->executeEmulateQuery($query, $bindValues);
-        $sql = $this->interpolateQuery($query, $bindValues);
-        $this->debug($sql);
+        $fullQuery = $this->interpolateQuery($query, $bindValues);
+        $this->debug($fullQuery);
 
         // create a prepared statement from the supplied SQL string
         try {
@@ -88,53 +95,107 @@ class DBManager //implements DBManagerInterface
     }
 
     /**
-     * Replaces any parameter placeholders in a query with the value of that
-     * parameter. Useful for debugging. Assumes anonymous parameters from
-     * $params are are in the same order as specified in $query
-     *
-     * @param string $query The sql query with parameter placeholders
-     * @param array $params The array of substitution parameters
-     * @return string The interpolated query
+     * https://code-examples.net/ko/q/33684
+     * https://github.com/noahheck/E_PDOStatement
+     * @param string $query
+     * @param array $params
+     * @return string
+     * @throws Exception
      */
-    public function interpolateQuery($query, $params)
+    protected function interpolateQuery($query, $params)
     {
-        $keys = array();
-        $values = $params;
+        $ps = preg_split("/'/is", $query);
+        $pieces = [];
+        $prev = null;
+        foreach ($ps as $p) {
+            $lastChar = substr($p, strlen($p) - 1);
 
-        # build a regular expression for each parameter
-        foreach ($params as $key => $value) {
-            if (is_string($key)) {
-                $keys[] = '/:' . $key . '/';
+            if ($lastChar != "\\") {
+                if ($prev === null) {
+                    $pieces[] = $p;
+                } else {
+                    $pieces[] = $prev . "'" . $p;
+                    $prev = null;
+                }
             } else {
-                $keys[] = '/[?]/';
+                $prev .= ($prev === null ? '' : "'") . $p;
+            }
+        }
+
+        $arr = [];
+        $indexQuestionMark = -1;
+        $matches = [];
+
+        for ($i = 0; $i < count($pieces); $i++) {
+            if ($i % 2 !== 0) {
+                $arr[] = "'" . $pieces[$i] . "'";
+            } else {
+                $st = '';
+                $s = $pieces[$i];
+                while (!empty($s)) {
+                    if (preg_match("/(\?|:[A-Z0-9_\-]+)/is", $s, $matches, PREG_OFFSET_CAPTURE)) {
+                        $index = $matches[0][1];
+                        $st .= substr($s, 0, $index);
+                        $key = $matches[0][0];
+                        $s = substr($s, $index + strlen($key));
+
+                        if ($key == '?') {
+                            $indexQuestionMark++;
+                            if (array_key_exists($indexQuestionMark, $params)) {
+                                $st .= $this->quote($params[$indexQuestionMark]);
+                            } else {
+                                throw new Exception('Wrong params in query at ' . $index);
+                            }
+                        } else {
+                            if (array_key_exists($key, $params)) {
+                                $st .= $this->quote($params[$key]);
+                            } else {
+                                throw new Exception('Wrong params in query with key ' . $key);
+                            }
+                        }
+                    } else {
+                        $st .= $s;
+                        $s = null;
+                    }
+                }
+                $arr[] = $st;
+            }
+        }
+
+        return implode('', $arr);
+    }
+
+    public function quote($str)
+    {
+        if (!is_array($str)) {
+            return $this->pdo->quote($str);
+        } else {
+            $str = implode(',', array_map(function ($v) {
+                return $this->quote($v);
+            }, $str));
+
+            if (empty($str)) {
+                return 'NULL';
             }
 
-            if (is_array($value))
-                $values[$key] = implode(',', $value);
-
-            if (is_null($value))
-                $values[$key] = 'NULL';
+            return $str;
         }
-        // Walk the array to see if we can add single-quotes to strings
-        array_walk($values, create_function('&$v, $k', 'if (!is_numeric($v) && $v!="NULL") $v = "\'".$v."\'";'));
-
-        $query = preg_replace($keys, $values, $query, 1, $count);
-
-        return $query;
     }
 
     protected function debug($message, array $context = array())
     {
-        $message = is_array($message) ? var_export($message, true) : $message;
-        if ($this->enableLogging && !is_null($this->logger))
+        if ($this->enableLogging && $this->logger) {
+            $message = is_array($message) ? var_export($message, true) : $message;
             $this->logger->debug($message, $context);
+        }
     }
 
     protected function err($message, array $context = array())
     {
-        $message = is_array($message) ? var_export($message, true) : $message;
-        if (!is_null($this->logger))
+        if (!is_null($this->logger)) {
+            $message = is_array($message) ? var_export($message, true) : $message;
             $this->logger->error($message, $context);
+        }
     }
 
     function executePreparedQueryOne($query, array $bindValues = null)
@@ -295,8 +356,8 @@ class DBManager //implements DBManagerInterface
     function executePreparedUpdate($query, array $bindValues = null)
     {
 //        $sql = $this->executeEmulateQuery($query, $bindValues);
-        $sql = $this->interpolateQuery($query, $bindValues);
-        $this->debug($sql);
+        $fullQuery = $this->interpolateQuery($query, $bindValues);
+        $this->debug($fullQuery);
 
         // create a prepared statement from the supplied SQL string
         try {
@@ -414,76 +475,12 @@ class DBManager //implements DBManagerInterface
             $this->logger->info($message, $context);
     }
 
-    private function _executeEmulateQuery($query, $data = array())
+    private function error($message, $context = array())
     {
-        $this->_prepareEmulateQuery($query);
-
-        // $stmt = ( int ) $stmt;
-        $data = ( array )$data;
-        $this->last_parameters = $data;
-
-        if (count($this->prepare_types) != count($data)) {
-            // throw new DB\Exception ( $e->getMessage () );
-            return false;
+        if ($this->logger) {
+            $this->logger->error($message, $context);
         }
-
-        $realquery = $this->prepare_tokens [0];
-
-        $i = 0;
-        foreach ($data as $value) {
-            if ($this->prepare_types [$i] == self::DB_PARAM_SCALAR) {
-                $realquery .= $this->quote($value);
-            } elseif ($this->prepare_types [$i] == self::DB_PARAM_OPAQUE) {
-                $fp = @fopen($value, 'rb');
-                if (!$fp) {
-                    // return $this->raiseError ( DB_ERROR_ACCESS_VIOLATION );
-                    // throw new DB\Exception ( $e->getMessage () );
-                    return false;
-                }
-                $realquery .= $this->quote(fread($fp, filesize($value)));
-                fclose($fp);
-            } else {
-                $realquery .= $value;
-            }
-
-            $realquery .= $this->prepare_tokens [++$i];
-        }
-
-        return $realquery;
     }
 
-    private function _prepareEmulateQuery($query)
-    {
-        $tokens = preg_split('/((?<!\\\)[&?!])/', $query, -1, PREG_SPLIT_DELIM_CAPTURE);
-        $token = 0;
-        $types = array();
-        $newtokens = array();
 
-        foreach ($tokens as $val) {
-            switch ($val) {
-                case '&' :
-                    $types [$token++] = self::DB_PARAM_OPAQUE;
-                    break;
-                case '?' :
-                    $types [$token++] = self::DB_PARAM_SCALAR;
-                    break;
-                case '!' :
-                    $types [$token++] = self::DB_PARAM_MISC;
-                    break;
-                default :
-                    $newtokens [] = preg_replace('/\\\([&?!])/', "\\1", $val);
-            }
-        }
-
-        $this->prepare_tokens = &$newtokens;
-        $this->prepare_types = $types;
-        $this->prepared_queries = implode(' ', $newtokens);
-
-        return $tokens;
-    }
-
-    public function quote($string, $type = \PDO::PARAM_STR)
-    {
-        return $this->pdo->quote($string, $type);
-    }
 }
